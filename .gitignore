@@ -14,6 +14,8 @@
 
 # Environment files
 /.env
+/.env.local
+/.env.*.local
 
 # Angular CLI and build artefacts
 /.angular-cli.json
@@ -26,3 +28,15 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+*.pyo
+*.egg-info/
+.venv/
+venv/
+
+# App outputs
+generated_cvs/
