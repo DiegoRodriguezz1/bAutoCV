@@ -29,16 +29,24 @@ Por defecto: `APP_ENV=dev`.
 
 ## Ejecutar
 
+Simply:
+
+```powershell
+.\.venv\Scripts\python.exe -m uvicorn main:app --reload
+```
+
+Defaults to `APP_ENV=dev`. To use a different environment:
+
 ```powershell
 # PowerShell
-$env:APP_ENV="dev"
+$env:APP_ENV="prod"
 .\.venv\Scripts\python.exe -m uvicorn main:app --reload
 ```
 
 ```bash
 # Bash
-export APP_ENV=dev
-./.venv/Scripts/python.exe -m uvicorn main:app --reload
+export APP_ENV=prod
+python -m uvicorn main:app --reload
 ```
 
 ## Swagger

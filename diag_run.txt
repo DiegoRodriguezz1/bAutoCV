@@ -1,0 +1,3 @@
+PID=12608
+REQUEST_ERROR=No es posible conectar con el servidor remoto
+STOPPED=1
