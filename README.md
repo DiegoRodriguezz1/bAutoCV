@@ -31,21 +31,15 @@ Por defecto: `APP_ENV=dev`.
 
 Simply:
 
-```powershell
-.\.venv\Scripts\python.exe -m uvicorn main:app --reload
-```
+Instalar dependencias (requerimients.txt)
+python -m pip install fastapi uvicorn[standard] sqlalchemy asyncpg python-dotenv pydantic-settings rendercv[full]
+
 
 Defaults to `APP_ENV=dev`. To use a different environment:
 
-```powershell
-# PowerShell
-$env:APP_ENV="prod"
-.\.venv\Scripts\python.exe -m uvicorn main:app --reload
-```
-
 ```bash
 # Bash
-export APP_ENV=prod
+export APP_ENV=dev
 python -m uvicorn main:app --reload
 ```
 
