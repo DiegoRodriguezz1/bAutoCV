@@ -45,6 +45,22 @@ class Settings(BaseSettings):
         default="generated_cvs", validation_alias="RENDERCV_OUTPUT_DIR"
     )
 
+    esco_base_url: str = Field(
+        default="https://ec.europa.eu/esco/api", validation_alias="ESCO_BASE_URL"
+    )
+    esco_timeout_seconds: float = Field(
+        default=10.0, validation_alias="ESCO_TIMEOUT_SECONDS"
+    )
+    esco_cache_ttl_seconds: int = Field(
+        default=900, validation_alias="ESCO_CACHE_TTL_SECONDS"
+    )
+    esco_cache_max_entries: int = Field(
+        default=512, validation_alias="ESCO_CACHE_MAX_ENTRIES"
+    )
+    esco_selected_version: str | None = Field(
+        default=None, validation_alias="ESCO_SELECTED_VERSION"
+    )
+
     model_config = SettingsConfigDict(extra="ignore")
 
 

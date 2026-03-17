@@ -11,7 +11,7 @@ from uuid import uuid4
 import yaml
 
 from app.core.config import ROOT_DIR, get_settings
-from app.schemas.cv import RenderCvRequest, RenderCvResponse
+from app.schemas.cv import RenderCvRequest, RenderCvResponse, RenderCvYamlResponse
 from app.services.interfaces.cv_renderer import CvRenderer
 
 
@@ -47,22 +47,8 @@ class RenderCvService(CvRenderer):
 
         file_stem = payload.output_name or f"cv_{uuid4().hex[:8]}"
         input_file = self.output_dir / f"{file_stem}.yaml"
-        yaml_content = payload.profile_yaml
-        if payload.cv is not None:
-            # Build full RenderCV document
-            document: dict[str, Any] = {"cv": payload.cv.model_dump(exclude_none=True)}
-            if payload.design:
-                document["design"] = payload.design
-            if payload.locale:
-                document["locale"] = payload.locale
-            if payload.settings:
-                document["settings"] = payload.settings
-            
-            yaml_content = yaml.safe_dump(
-                document,
-                allow_unicode=True,
-                sort_keys=False,
-            )
+        yaml_response = self.generate_yaml(payload)
+        yaml_content = yaml_response.generated_yaml
 
         if not yaml_content:
             return RenderCvResponse(
@@ -130,6 +116,7 @@ class RenderCvService(CvRenderer):
                 accepted=False,
                 message=f"RenderCV execution failed: {message}",
                 output_path=str(input_file.relative_to(ROOT_DIR)),
+                generated_yaml=yaml_content,
             )
 
         # RenderCV generates files in rendercv_output/ subdirectory
@@ -178,6 +165,40 @@ class RenderCvService(CvRenderer):
             accepted=True,
             message="PDF generated successfully.",
             output_path=relative_path,
+            generated_yaml=yaml_content,
             pdf_base64=pdf_base64,
             filename=final_pdf_name,
         )
+
+    def generate_yaml(self, payload: RenderCvRequest) -> RenderCvYamlResponse:
+        if payload.profile_yaml:
+            try:
+                document = yaml.safe_load(payload.profile_yaml) or {}
+            except yaml.YAMLError:
+                document = {}
+
+            return RenderCvYamlResponse(
+                generated_yaml=payload.profile_yaml,
+                document=document if isinstance(document, dict) else {},
+            )
+
+        document = self._build_document(payload)
+        generated_yaml = yaml.safe_dump(
+            document,
+            allow_unicode=True,
+            sort_keys=False,
+        )
+        return RenderCvYamlResponse(generated_yaml=generated_yaml, document=document)
+
+    @staticmethod
+    def _build_document(payload: RenderCvRequest) -> dict[str, Any]:
+        document: dict[str, Any] = {}
+        if payload.cv is not None:
+            document["cv"] = payload.cv.model_dump(exclude_none=True)
+        if payload.design:
+            document["design"] = payload.design
+        if payload.locale:
+            document["locale"] = payload.locale
+        if payload.settings:
+            document["settings"] = payload.settings
+        return document
