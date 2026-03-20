@@ -60,6 +60,11 @@ python -m uvicorn main:app --reload
 - `POST /api/v1/cv/yaml` generar YAML de RenderCV sin renderizar PDF
 - `GET /api/v1/cv/download/{filename}` descargar PDF generado
 
+## Endpoints OCR (PDF -> Datos -> YAML)
+
+- `POST /api/v1/ocr/extract-cv` extraer texto y datos estructurados desde PDF (con Gemini opcional)
+- `POST /api/v1/ocr/extract-cv-preview` preview rapido usando regex (sin Gemini)
+
 ## Endpoints ESCO: Búsqueda Rápida y Flujo de Asistente
 
 El API ofrece un flujo optimizado de ocupación → skills → descripción para llenar la sección de perfil del CV de manera automática desde ESCO.
@@ -131,3 +136,21 @@ La integracion inicial usa un servicio dedicado (`RenderCvService`) y se activa 
 - `RENDERCV_BIN=rendercv`
 
 Luego el endpoint `POST /api/v1/cv/render` recibe YAML de RenderCV y dispara la CLI.
+
+## Variables Sensibles en .env
+
+Configura por ambiente en `.env.dev` o `.env.prod`:
+
+```bash
+# OCR (ocr.space)
+OCR_SPACE_API_KEY=tu_api_key_de_ocr_space
+OCR_SPACE_ENDPOINT=https://api.ocr.space/parse/image
+OCR_DEFAULT_LANGUAGE=spa
+OCR_TIMEOUT_SECONDS=30
+
+# Gemini (opcional para estructurar mejor OCR)
+GEMINI_API_KEY=tu_api_key_de_gemini
+GEMINI_MODEL=gemini-1.5-flash
+GEMINI_BASE_URL=https://generativelanguage.googleapis.com/v1beta
+GEMINI_TIMEOUT_SECONDS=20
+```

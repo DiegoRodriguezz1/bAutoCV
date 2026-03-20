@@ -1,6 +1,23 @@
+from enum import Enum
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+
+class RenderCvTheme(str, Enum):
+    """Valid RenderCV theme options."""
+    CLASSIC = "classic"
+    MODERN = "modern"
+    CASUAL = "casual"
+
+
+class DesignConfig(BaseModel):
+    """RenderCV design configuration."""
+    theme: RenderCvTheme = Field(
+        default=RenderCvTheme.CLASSIC,
+        description="RenderCV theme: classic, modern, or casual"
+    )
+    # Additional design config fields can be added here
 
 
 class CvSocialNetwork(BaseModel):
@@ -103,7 +120,7 @@ class RenderCvRequest(BaseModel):
         default=None,
         description="Structured CV payload; converted to RenderCV YAML under 'cv'.",
     )
-    design: dict[str, Any] | None = Field(
+    design: DesignConfig | None = Field(
         default=None,
         description="RenderCV design configuration (theme, colors, typography, etc.)",
     )

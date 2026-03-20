@@ -63,16 +63,21 @@ class RenderCvService(CvRenderer):
         if rendercv_output_dir.exists():
             shutil.rmtree(rendercv_output_dir, ignore_errors=True)
 
-        # Generate only PDF, skip intermediate files for speed
-        cmd = [
-            self.rendercv_bin,
-            "render",
-            "--quiet",
-            "--dont-generate-markdown",
-            "--dont-generate-html",
-            "--dont-generate-png",
-            str(input_file),
-        ]
+        # Generate only PDF, skip intermediate files for speed.
+        def _build_render_cmd(executable: str, quiet: bool) -> list[str]:
+            cmd_args = [
+                executable,
+                "render",
+                "--dont-generate-markdown",
+                "--dont-generate-html",
+                "--dont-generate-png",
+            ]
+            if quiet:
+                cmd_args.insert(2, "--quiet")
+            cmd_args.append(str(input_file))
+            return cmd_args
+
+        cmd = _build_render_cmd(self.rendercv_bin, quiet=True)
         process_env = os.environ.copy()
         process_env["PYTHONUTF8"] = "1"
         process_env["PYTHONIOENCODING"] = "utf-8"
@@ -83,6 +88,8 @@ class RenderCvService(CvRenderer):
                 cmd,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 check=False,
                 env=process_env,
             )
@@ -94,24 +101,45 @@ class RenderCvService(CvRenderer):
                 "utf8",
                 "-m",
                 "rendercv",
-                "render",
-                "--quiet",
-                "--dont-generate-markdown",
-                "--dont-generate-html",
-                "--dont-generate-png",
-                str(input_file),
             ]
+            cmd.extend(_build_render_cmd("", quiet=True)[1:])
             process = await asyncio.to_thread(
                 subprocess.run,
                 cmd,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 check=False,
                 env=process_env,
             )
 
         if process.returncode != 0:
-            message = process.stderr.strip() or process.stdout.strip() or "Unknown RenderCV error"
+            stderr_msg = process.stderr.strip() if process.stderr else ""
+            stdout_msg = process.stdout.strip() if process.stdout else ""
+            message = stderr_msg or stdout_msg or "Unknown RenderCV error"
+
+            # RenderCV with --quiet can suppress validation details; retry once without it.
+            if message == "Unknown RenderCV error":
+                verbose_cmd = cmd.copy()
+                if "--quiet" in verbose_cmd:
+                    verbose_cmd.remove("--quiet")
+                verbose_process = await asyncio.to_thread(
+                    subprocess.run,
+                    verbose_cmd,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    check=False,
+                    env=process_env,
+                )
+                verbose_stderr = verbose_process.stderr.strip() if verbose_process.stderr else ""
+                verbose_stdout = verbose_process.stdout.strip() if verbose_process.stdout else ""
+                verbose_message = verbose_stderr or verbose_stdout
+                if verbose_message:
+                    message = verbose_message
+
             return RenderCvResponse(
                 accepted=False,
                 message=f"RenderCV execution failed: {message}",
@@ -194,11 +222,77 @@ class RenderCvService(CvRenderer):
     def _build_document(payload: RenderCvRequest) -> dict[str, Any]:
         document: dict[str, Any] = {}
         if payload.cv is not None:
-            document["cv"] = payload.cv.model_dump(exclude_none=True)
+            cv_data = payload.cv.model_dump(exclude_none=True)
+
+            # RenderCV validates email/phone formats; drop empty-string placeholders.
+            for key in ("email", "phone", "website", "headline", "location", "photo"):
+                value = cv_data.get(key)
+                if isinstance(value, str) and not value.strip():
+                    cv_data.pop(key, None)
+                elif isinstance(value, list):
+                    filtered = [item for item in value if not (isinstance(item, str) and not item.strip())]
+                    if filtered:
+                        cv_data[key] = filtered
+                    else:
+                        cv_data.pop(key, None)
+
+            # Validate and sanitize email field
+            email = cv_data.get("email")
+            if isinstance(email, str):
+                email = email.strip()
+                if email and not _is_valid_email(email):
+                    cv_data.pop("email", None)
+                elif email:
+                    cv_data["email"] = email
+
+            # Validate and sanitize phone field
+            phone = cv_data.get("phone")
+            if isinstance(phone, str):
+                phone = phone.strip()
+                if phone and not _is_valid_phone(phone):
+                    cv_data.pop("phone", None)
+                elif phone:
+                    cv_data["phone"] = phone
+
+            # Trim whitespace from optional string fields to avoid RenderCV validation issues
+            for key in ("headline", "location", "website"):
+                value = cv_data.get(key)
+                if isinstance(value, str):
+                    trimmed = value.strip()
+                    if trimmed:
+                        cv_data[key] = trimmed
+                    else:
+                        cv_data.pop(key, None)
+
+            document["cv"] = cv_data
         if payload.design:
-            document["design"] = payload.design
+            # mode="json" converts Enum values to plain strings for YAML serialization.
+            document["design"] = payload.design.model_dump(mode="json", exclude_none=True)
         if payload.locale:
             document["locale"] = payload.locale
         if payload.settings:
             document["settings"] = payload.settings
         return document
+
+
+def _is_valid_email(email: str) -> bool:
+    """Check if email looks valid (basic: has @ and domain)."""
+    if "@" not in email:
+        return False
+    parts = email.split("@")
+    if len(parts) != 2 or not parts[0].strip() or not parts[1].strip():
+        return False
+    local, domain = parts
+    # Domain must have at least one dot and a 2+ letter TLD
+    if "." not in domain:
+        return False
+    domain_parts = domain.split(".")
+    if len(domain_parts[-1]) < 2:
+        return False
+    return True
+
+
+def _is_valid_phone(phone: str) -> bool:
+    """Check if phone looks valid (basic: has at least 7 digits when stripped of non-digits)."""
+    digits = "".join(c for c in phone if c.isdigit())
+    return len(digits) >= 7
