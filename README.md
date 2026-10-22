@@ -123,6 +123,22 @@ El API ofrece un flujo optimizado de ocupación → skills → descripción para
 - `GET /api/v1/esco/occupations/details?uri=...` detalles completos de una ocupación
 - `GET /api/v1/esco/skills/details?uri=...` detalles completos de una skill
 
+## Experimento instrumental
+
+El flujo experimental persiste sesiones, eventos, habilidades y encuestas en PostgreSQL. Los
+timestamps de eventos se generan en el servidor con `now()` y nunca se reciben desde el cliente.
+
+- `POST /api/v1/experiment/sessions` crea una sesión y registra `consent_given` y `session_start`
+- `POST /api/v1/experiment/sessions/{id}/events` registra eventos del flujo
+- `POST /api/v1/experiment/sessions/{id}/skills` guarda la resolución ESCO de una habilidad
+- `POST /api/v1/experiment/sessions/{id}/survey` guarda respuestas de satisfacción
+- `GET /api/v1/experiment/metrics` métricas agregadas
+- `GET /api/v1/experiment/sessions` y `/events` datos para la consola investigadora
+- `GET /api/v1/experiment/export/sessions.csv` y `/events.csv` exportaciones CSV
+
+Las tablas se crean al iniciar FastAPI mediante SQLAlchemy. También se incluye el script
+`sql/001_experiment_schema.sql` para despliegues SQL explícitos.
+
 ## PostgreSQL Hosting Sencillo
 
 Puedes usar proveedores gestionados como Render, Supabase, Neon o Railway.

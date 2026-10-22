@@ -4,6 +4,8 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.config import get_settings
+from app.entities.base import Base
+from app.entities import experiment  # noqa: F401
 
 settings = get_settings()
 
@@ -28,3 +30,8 @@ async def check_db_connection() -> bool:
         return True
     except Exception:
         return False
+
+
+async def create_database_schema() -> None:
+    async with engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all)

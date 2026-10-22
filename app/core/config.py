@@ -32,6 +32,10 @@ class Settings(BaseSettings):
     api_v1_prefix: str = Field(default="/api/v1", validation_alias="API_V1_PREFIX")
     docs_url: str = Field(default="/docs", validation_alias="DOCS_URL")
     redoc_url: str = Field(default="/redoc", validation_alias="REDOC_URL")
+    cors_allowed_origins: str = Field(
+        default="http://localhost:5173,http://127.0.0.1:5173,https://autocv.me",
+        validation_alias="CORS_ALLOWED_ORIGINS",
+    )
 
     database_url: str = Field(
         default="postgresql+asyncpg://postgres:postgres@localhost:5432/bautocv",
