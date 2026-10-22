@@ -185,7 +185,7 @@ class EscoService:
             occupations = [self._parse_occupation(item, language) for item in results]
             return EscoOccupationSearchResponse(occupations=occupations, total=data.get("total", 0))
         except httpx.HTTPError:
-            return EscoOccupationSearchResponse(occupations=[], total=0)
+            return EscoOccupationSearchResponse(occupations=[], total=0, degraded=True)
 
     async def search_occupations(
         self,
@@ -253,7 +253,7 @@ class EscoService:
             skills = [self._parse_skill(item, language) for item in results]
             return EscoSkillSearchResponse(skills=skills, total=data.get("total", 0))
         except httpx.HTTPError:
-            return EscoSkillSearchResponse(skills=[], total=0)
+            return EscoSkillSearchResponse(skills=[], total=0, degraded=True)
 
     async def _get_related_skills(
         self,

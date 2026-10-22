@@ -90,7 +90,14 @@ class Settings(BaseSettings):
         default=512, validation_alias="ESCO_CACHE_MAX_ENTRIES"
     )
     esco_selected_version: str | None = Field(
-        default=None, validation_alias="ESCO_SELECTED_VERSION"
+        default="v1.2.0", validation_alias="ESCO_SELECTED_VERSION"
+    )
+
+    experiment_allow_forced_group: bool = Field(
+        default=False, validation_alias="EXPERIMENT_ALLOW_FORCED_GROUP"
+    )
+    research_api_key: str | None = Field(
+        default=None, validation_alias="RESEARCH_API_KEY"
     )
 
     model_config = SettingsConfigDict(extra="ignore")
