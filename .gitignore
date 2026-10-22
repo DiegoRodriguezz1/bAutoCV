@@ -40,3 +40,7 @@ venv/
 
 # App outputs
 generated_cvs/
+
+# Credenciales reales: cada quien tiene su copia local (plantilla en .env.example)
+.env.dev
+.env.prod
