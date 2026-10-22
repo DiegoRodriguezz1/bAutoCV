@@ -1,10 +1,13 @@
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import AfterValidator, BaseModel, Field, field_validator
 
-from app.entities.experiment import EventType, Section, SkillSource
+from app.entities.experiment import EventType, Section, SkillSource, as_utc
+
+# SQLite devuelve fechas sin zona; se marcan como UTC para que el navegador no las lea como hora local.
+UtcDatetime = Annotated[datetime, AfterValidator(as_utc)]
 
 SURVEY_ITEMS: dict[int, str] = {
     1: "El CV final representa bien mi perfil",
@@ -27,16 +30,16 @@ class StartExperimentRequest(BaseModel):
 class SessionResponse(BaseModel):
     id: UUID
     group: str
-    started_at: datetime
-    consent_given_at: datetime
+    started_at: UtcDatetime
+    consent_given_at: UtcDatetime
 
 
 class SessionState(BaseModel):
     id: UUID
     group: str
-    started_at: datetime
-    exported_at: datetime | None
-    ended_at: datetime | None
+    started_at: UtcDatetime
+    exported_at: UtcDatetime | None
+    ended_at: UtcDatetime | None
     section_times: dict[str, float]
     survey_done: bool
 
@@ -62,7 +65,7 @@ class EventResponse(BaseModel):
     session_id: UUID
     event_type: EventType
     detail: str | None
-    ts: datetime
+    ts: UtcDatetime
     metadata: dict | None = None
 
 
@@ -202,9 +205,9 @@ class ExperimentMetrics(BaseModel):
 class SessionRow(BaseModel):
     id: UUID
     group: str
-    started_at: datetime
-    exported_at: datetime | None
-    ended_at: datetime | None
+    started_at: UtcDatetime
+    exported_at: UtcDatetime | None
+    ended_at: UtcDatetime | None
     time_to_cv_min: float | None
     esco_coverage_pct: float | None
     ats_score: float | None

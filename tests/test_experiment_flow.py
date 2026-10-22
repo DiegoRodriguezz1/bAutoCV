@@ -93,6 +93,26 @@ async def test_full_flow_group_b(client, cv_snapshot):
 
 
 @pytest.mark.asyncio
+async def test_section_time_survives_reload_and_accumulates_visits(client):
+    session_id = await _start(client, "A")
+    url = f"/experiment/sessions/{session_id}/events"
+    enter = {"event_type": "section_enter", "metadata": {"section": "personal"}}
+    complete = {"event_type": "section_complete", "metadata": {"section": "personal"}}
+
+    await client.post(url, json=enter)
+    await asyncio.sleep(0.3)
+    await client.post(url, json=enter)  # recarga de página: repite section_enter
+    first = (await client.post(url, json=complete)).json()["metadata"]["seconds"]
+    assert first >= 0.3
+
+    await client.post(url, json=enter)  # vuelve a la sección más tarde
+    await asyncio.sleep(0.2)
+    await client.post(url, json=complete)
+    state = (await client.get(f"/experiment/sessions/{session_id}")).json()
+    assert state["section_times"]["personal"] >= first + 0.2
+
+
+@pytest.mark.asyncio
 async def test_group_a_cannot_normalize(client):
     session_id = await _start(client, "A")
     response = await client.post(f"/experiment/sessions/{session_id}/skills", json={

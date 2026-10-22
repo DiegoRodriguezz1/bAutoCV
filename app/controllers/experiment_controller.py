@@ -184,13 +184,23 @@ async def record_event(
         detail = section
 
     if payload.event_type == EventType.SECTION_COMPLETE:
-        entered_at = await db.scalar(
+        # Se cuenta desde la primera entrada posterior al último cierre de la sección: así una
+        # recarga de página (que repite section_enter) no reinicia el tiempo, y cada visita suma.
+        last_complete = await db.scalar(
             select(func.max(EventLog.ts)).where(
                 EventLog.session_id == session.id,
-                EventLog.event_type == EventType.SECTION_ENTER.value,
+                EventLog.event_type == EventType.SECTION_COMPLETE.value,
                 EventLog.detail == detail,
             )
         )
+        enter_query = select(func.min(EventLog.ts)).where(
+            EventLog.session_id == session.id,
+            EventLog.event_type == EventType.SECTION_ENTER.value,
+            EventLog.detail == detail,
+        )
+        if last_complete is not None:
+            enter_query = enter_query.where(EventLog.ts > last_complete)
+        entered_at = await db.scalar(enter_query)
         if entered_at is None:
             raise HTTPException(status_code=409, detail="No hay un section_enter previo para esta sección")
         seconds = round((utc_now() - as_utc(entered_at)).total_seconds(), 1)
@@ -320,7 +330,8 @@ async def export_cv(session_id: UUID, payload: CvSnapshot, db: AsyncSession = De
     session.ats_score = ats.ats_score
     session.ats_breakdown = ats.ats_breakdown.model_dump()
 
-    _log(db, session, EventType.ATS_SCORED, f"puntaje={ats.ats_score}", ats.ats_breakdown.model_dump())
+    db.add(EventLog(session_id=session.id, event_type=EventType.ATS_SCORED.value, detail=f"puntaje={ats.ats_score}",
+                    metadata_json=ats.ats_breakdown.model_dump(), ts=exported_at))
     db.add(EventLog(session_id=session.id, event_type=EventType.CV_EXPORT.value,
                     detail=f"TimeToCV={session.time_to_cv_min} min", ts=exported_at,
                     metadata_json={"time_to_cv_min": session.time_to_cv_min}))
