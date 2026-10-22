@@ -39,6 +39,7 @@ class EscoOccupationSearchResponse(BaseModel):
 
     occupations: list[EscoOccupation] = Field(default_factory=list)
     total: int = Field(default=0)
+    degraded: bool = Field(default=False, description="True when ESCO did not respond")
 
 
 class EscoSkillSearchResponse(BaseModel):
@@ -46,6 +47,7 @@ class EscoSkillSearchResponse(BaseModel):
 
     skills: list[EscoSkill] = Field(default_factory=list)
     total: int = Field(default=0)
+    degraded: bool = Field(default=False, description="True when ESCO did not respond")
 
 
 class EscoOccupationSkillsResponse(BaseModel):

@@ -2,11 +2,35 @@ import os
 from functools import lru_cache
 from pathlib import Path
 
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+
 from dotenv import load_dotenv
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
+
+
+def normalize_database_url(url: str) -> str:
+    """
+    Acepta la URL tal como la entregan Render, Neon o Supabase ("postgres://..." o
+    "postgresql://...?sslmode=require") y la adapta al driver asyncpg.
+    """
+    url = url.strip()
+    for prefix in ("postgres://", "postgresql://"):
+        if url.startswith(prefix):
+            url = "postgresql+asyncpg://" + url[len(prefix):]
+            break
+    if not url.startswith("postgresql+asyncpg://"):
+        return url
+
+    parts = urlsplit(url)
+    query = dict(parse_qsl(parts.query))
+    # asyncpg no entiende "sslmode"; su equivalente es "ssl".
+    if "sslmode" in query:
+        query["ssl"] = query.pop("sslmode")
+    query.pop("channel_binding", None)
+    return urlunsplit(parts._replace(query=urlencode(query)))
 
 
 def _load_environment_file() -> str:
@@ -42,6 +66,11 @@ class Settings(BaseSettings):
         validation_alias="DATABASE_URL",
     )
     database_echo: bool = Field(default=False, validation_alias="DATABASE_ECHO")
+
+    @field_validator("database_url")
+    @classmethod
+    def _normalize_database_url(cls, value: str) -> str:
+        return normalize_database_url(value)
 
     rendercv_enabled: bool = Field(default=False, validation_alias="RENDERCV_ENABLED")
     rendercv_bin: str = Field(default="rendercv", validation_alias="RENDERCV_BIN")
@@ -90,7 +119,14 @@ class Settings(BaseSettings):
         default=512, validation_alias="ESCO_CACHE_MAX_ENTRIES"
     )
     esco_selected_version: str | None = Field(
-        default=None, validation_alias="ESCO_SELECTED_VERSION"
+        default="v1.2.0", validation_alias="ESCO_SELECTED_VERSION"
+    )
+
+    experiment_allow_forced_group: bool = Field(
+        default=False, validation_alias="EXPERIMENT_ALLOW_FORCED_GROUP"
+    )
+    research_api_key: str | None = Field(
+        default=None, validation_alias="RESEARCH_API_KEY"
     )
 
     model_config = SettingsConfigDict(extra="ignore")

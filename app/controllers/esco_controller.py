@@ -1,6 +1,6 @@
 from typing import Any
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Response
 
 from app.schemas.esco import (
     EscoDescriptionAssistantRequest,
@@ -13,6 +13,12 @@ from app.services.implementations.esco_service import EscoService
 
 router = APIRouter(prefix="/esco", tags=["ESCO"])
 esco_service = EscoService()
+
+
+def _flag_degraded(response: Response, degraded: bool) -> None:
+    """Lets the frontend warn that ESCO suggestions are unavailable without failing the request."""
+    if degraded:
+        response.headers["X-ESCO-Degraded"] = "1"
 
 
 @router.get("/occupations/search", response_model=EscoOccupationSearchResponse)
@@ -34,16 +40,33 @@ async def search_occupations(
 
 @router.get("/occupations/suggest", response_model=EscoOccupationSearchResponse)
 async def suggest_occupations(
+    response: Response,
     text: str = Query(..., description="Autocomplete text", min_length=2),
     language: str = Query(default="es", description="Language code (es, en, fr, etc.)"),
     limit: int = Query(default=10, ge=1, le=50, description="Maximum results"),
 ) -> EscoOccupationSearchResponse:
     """Fast occupation autocomplete using ESCO suggest2."""
-    return await esco_service.autocomplete_occupations(text=text, language=language, limit=limit)
+    result = await esco_service.autocomplete_occupations(text=text, language=language, limit=limit)
+    _flag_degraded(response, result.degraded)
+    return result
+
+
+@router.get("/skills/suggest", response_model=EscoSkillSearchResponse)
+async def suggest_skills(
+    response: Response,
+    text: str = Query(..., description="Autocomplete text", min_length=2),
+    language: str = Query(default="es", description="Language code (es, en, fr, etc.)"),
+    limit: int = Query(default=8, ge=1, le=50, description="Maximum results"),
+) -> EscoSkillSearchResponse:
+    """Fast skill autocomplete using ESCO suggest2."""
+    result = await esco_service.search_skills(text=text, language=language, limit=limit)
+    _flag_degraded(response, result.degraded)
+    return result
 
 
 @router.get("/skills/search", response_model=EscoSkillSearchResponse)
 async def search_skills(
+    response: Response,
     text: str = Query(..., description="Search query text", min_length=2),
     language: str = Query(default="es", description="Language code (es, en, fr, etc.)"),
     limit: int = Query(default=10, ge=1, le=50, description="Maximum results"),
@@ -56,7 +79,9 @@ async def search_skills(
     GET /api/v1/esco/skills/search?text=java&language=es&limit=10
     ```
     """
-    return await esco_service.search_skills(text=text, language=language, limit=limit)
+    result = await esco_service.search_skills(text=text, language=language, limit=limit)
+    _flag_degraded(response, result.degraded)
+    return result
 
 
 @router.get("/occupations/skills", response_model=EscoOccupationSkillsResponse)

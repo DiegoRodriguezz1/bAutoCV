@@ -123,21 +123,74 @@ El API ofrece un flujo optimizado de ocupación → skills → descripción para
 - `GET /api/v1/esco/occupations/details?uri=...` detalles completos de una ocupación
 - `GET /api/v1/esco/skills/details?uri=...` detalles completos de una skill
 
-## Experimento instrumental
+## Experimento instrumental (A/B)
 
-El flujo experimental persiste sesiones, eventos, habilidades y encuestas en PostgreSQL. Los
-timestamps de eventos se generan en el servidor con `now()` y nunca se reciben desde el cliente.
+El flujo experimental guarda sesiones, eventos, habilidades y encuestas. Las marcas de tiempo las
+pone **el servidor** en UTC (nunca el navegador), y TimeToCV, cobertura ESCO y puntaje ATS se
+calculan en el servidor a partir de esos registros.
 
-- `POST /api/v1/experiment/sessions` crea una sesión y registra `consent_given` y `session_start`
-- `POST /api/v1/experiment/sessions/{id}/events` registra eventos del flujo
-- `POST /api/v1/experiment/sessions/{id}/skills` guarda la resolución ESCO de una habilidad
-- `POST /api/v1/experiment/sessions/{id}/survey` guarda respuestas de satisfacción
-- `GET /api/v1/experiment/metrics` métricas agregadas
-- `GET /api/v1/experiment/sessions` y `/events` datos para la consola investigadora
-- `GET /api/v1/experiment/export/sessions.csv` y `/events.csv` exportaciones CSV
+- **Grupo A (control):** formulario manual. El back rechaza habilidades con URI ESCO para este grupo.
+- **Grupo B (AutoCV):** sugerencias ESCO y optimización ATS.
+- La asignación es aleatoria por bloques (ningún grupo se adelanta más de 2 sesiones).
 
-Las tablas se crean al iniciar FastAPI mediante SQLAlchemy. También se incluye el script
-`sql/001_experiment_schema.sql` para despliegues SQL explícitos.
+### Eventos
+
+| Evento | Quién lo registra | Alimenta |
+|---|---|---|
+| `consent_given`, `session_start` | `POST /sessions` (requiere `consent: true`) | Grupo, inicio de TimeToCV |
+| `section_enter`, `section_complete` | cliente → `POST /sessions/{id}/events` | Tiempo por sección (el servidor calcula los segundos) |
+| `field_edit` | cliente (al confirmar un campo) y al quitar habilidades | Ediciones |
+| `skill_added`, `skill_normalized` | `POST /sessions/{id}/skills` | Cobertura ESCO |
+| `ats_scored`, `cv_export` | `POST /sessions/{id}/export` (solo la primera fija TimeToCV) | ATS y TimeToCV |
+| `survey_submitted` | `POST /sessions/{id}/survey` | Satisfacción |
+| `session_end` | `POST /sessions/{id}/end` | Sesiones completas / abandonadas |
+
+Puntaje ATS: `25·S + 15·P + 15·H + 20·E + 10·C + 15·F` (ver `app/services/implementations/ats_service.py`).
+
+### Endpoints
+
+- `POST /api/v1/experiment/sessions`, `GET /api/v1/experiment/sessions/{id}`
+- `POST /api/v1/experiment/sessions/{id}/events`
+- `GET|POST /api/v1/experiment/sessions/{id}/skills`, `DELETE .../skills/{skill_id}` (borrado lógico)
+- `GET /api/v1/experiment/sessions/{id}/metrics` métricas en vivo de una sesión
+- `POST /api/v1/experiment/ats/preview` puntaje ATS estimado sin registrar nada
+- `POST /api/v1/experiment/sessions/{id}/export`, `/survey`, `/end`
+- `GET /api/v1/experiment/metrics` métricas por grupo A vs B (con metas)
+- `GET /api/v1/experiment/sessions?group=&limit=&offset=` y `/events?session_id=&limit=`
+- `GET /api/v1/experiment/export/{sessions|events|skills|survey}.csv` (UTF-8 con BOM para Excel)
+- `GET /api/v1/esco/skills/suggest` autocompletado rápido de habilidades
+- `GET /api/v1/catalog/cities?country=CO&text=` y `/catalog/institutions?text=`
+
+Si ESCO no responde, sus endpoints devuelven listas vacías con el header `X-ESCO-Degraded: 1`.
+
+### Variables
+
+- `EXPERIMENT_ALLOW_FORCED_GROUP=true` permite forzar el grupo al crear la sesión (solo desarrollo).
+- `RESEARCH_API_KEY` protege las rutas de lectura masiva (`/metrics`, `/sessions`, `/events`, `/export/*`)
+  con el header `X-Research-Key`. Si está vacía, quedan abiertas.
+
+### Base de datos
+
+Las tablas se crean al iniciar FastAPI (`create_all`), pero **`create_all` no altera tablas que ya
+existen**. En una base que ya tenía el esquema del corte anterior, ejecuta:
+
+```bash
+psql "postgresql://usuario:clave@host:5432/bautocv" -f sql/001_experiment_schema.sql
+psql "postgresql://usuario:clave@host:5432/bautocv" -v app_role=<rol_de_la_api> -f sql/002_instrumentation.sql
+```
+
+`002_instrumentation.sql` añade las columnas nuevas y un trigger que impide `UPDATE` y `DELETE` en
+`EVENT_LOG` (registro a prueba de manipulación). Por ese trigger, una sesión no se puede borrar
+mientras tenga eventos.
+
+### Tests
+
+```bash
+python -m pip install -r requirements-dev.txt
+python -m pytest
+```
+
+Los tests usan SQLite en un archivo temporal. Para probar contra PostgreSQL, define `DATABASE_URL_TEST`.
 
 ## PostgreSQL Hosting Sencillo
 
