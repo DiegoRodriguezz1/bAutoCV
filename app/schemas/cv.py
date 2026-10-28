@@ -1,23 +1,55 @@
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class RenderCvTheme(str, Enum):
-    """Valid RenderCV theme options."""
+    """Friendly theme names offered by the frontend."""
     CLASSIC = "classic"
     MODERN = "modern"
     CASUAL = "casual"
 
 
+# RenderCV 2.x only ships these built-in themes; any other name is treated as a custom
+# theme folder next to the YAML and fails with "The custom theme folder ... does not exist".
+RENDERCV_BUILT_IN_THEMES = (
+    "classic",
+    "ember",
+    "engineeringclassic",
+    "engineeringresumes",
+    "harvard",
+    "ink",
+    "moderncv",
+    "opal",
+    "sb2nov",
+)
+FRIENDLY_THEME_MAP = {
+    RenderCvTheme.CLASSIC.value: "classic",
+    RenderCvTheme.MODERN.value: "moderncv",
+    RenderCvTheme.CASUAL.value: "sb2nov",
+}
+
+
 class DesignConfig(BaseModel):
     """RenderCV design configuration."""
-    theme: RenderCvTheme = Field(
-        default=RenderCvTheme.CLASSIC,
-        description="RenderCV theme: classic, modern, or casual"
+    theme: str = Field(
+        default=RenderCvTheme.CLASSIC.value,
+        description=(
+            "Friendly name (classic, modern, casual) or a RenderCV built-in theme "
+            f"({', '.join(RENDERCV_BUILT_IN_THEMES)})."
+        ),
     )
-    # Additional design config fields can be added here
+
+    @field_validator("theme")
+    @classmethod
+    def to_rendercv_theme(cls, value: str) -> str:
+        name = value.strip().lower()
+        name = FRIENDLY_THEME_MAP.get(name, name)
+        if name not in RENDERCV_BUILT_IN_THEMES:
+            allowed = ", ".join([*FRIENDLY_THEME_MAP, *RENDERCV_BUILT_IN_THEMES])
+            raise ValueError(f"Tema de CV desconocido '{value}'. Usa uno de: {allowed}")
+        return name
 
 
 class CvSocialNetwork(BaseModel):

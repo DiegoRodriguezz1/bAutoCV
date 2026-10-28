@@ -8,6 +8,7 @@ os.environ["DATABASE_URL"] = os.getenv("DATABASE_URL_TEST", f"sqlite+aiosqlite:/
 os.environ["DATABASE_ECHO"] = "false"
 os.environ["EXPERIMENT_ALLOW_FORCED_GROUP"] = "true"
 os.environ["RESEARCH_API_KEY"] = ""
+os.environ["RENDERCV_ENABLED"] = "true"
 
 import httpx  # noqa: E402
 import pytest  # noqa: E402
