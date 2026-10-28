@@ -12,6 +12,11 @@ import yaml
 
 from app.core.config import ROOT_DIR, get_settings
 from app.schemas.cv import RenderCvRequest, RenderCvResponse, RenderCvYamlResponse
+from app.services.implementations.cv_sanitizer import (
+    normalize_phone,
+    normalize_section_dates,
+    sanitize_text_fields,
+)
 from app.services.interfaces.cv_renderer import CvRenderer
 
 
@@ -245,14 +250,22 @@ class RenderCvService(CvRenderer):
                 elif email:
                     cv_data["email"] = email
 
-            # Validate and sanitize phone field
+            # RenderCV only accepts international numbers: add the default country code
+            # (Colombia) when missing, and drop the phone instead of failing the whole PDF.
             phone = cv_data.get("phone")
             if isinstance(phone, str):
                 phone = phone.strip()
-                if phone and not _is_valid_phone(phone):
+                normalized_phone = normalize_phone(phone) if phone and _is_valid_phone(phone) else None
+                if normalized_phone:
+                    cv_data["phone"] = normalized_phone
+                else:
                     cv_data.pop("phone", None)
-                elif phone:
-                    cv_data["phone"] = phone
+            elif isinstance(phone, list):
+                phones = [p for p in (normalize_phone(item) for item in phone if isinstance(item, str)) if p]
+                if phones:
+                    cv_data["phone"] = phones
+                else:
+                    cv_data.pop("phone", None)
 
             # Trim whitespace from optional string fields to avoid RenderCV validation issues
             for key in ("headline", "location", "website"):
@@ -264,7 +277,9 @@ class RenderCvService(CvRenderer):
                     else:
                         cv_data.pop(key, None)
 
-            document["cv"] = cv_data
+            if isinstance(cv_data.get("sections"), dict):
+                cv_data["sections"] = normalize_section_dates(cv_data["sections"])
+            document["cv"] = sanitize_text_fields(cv_data)
         if payload.design:
             # mode="json" converts Enum values to plain strings for YAML serialization.
             document["design"] = payload.design.model_dump(mode="json", exclude_none=True)
