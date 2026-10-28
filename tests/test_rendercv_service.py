@@ -207,6 +207,21 @@ DIFFICULT_CASES = {
 }
 
 
+@pytest.mark.rendercv
+@needs_rendercv
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "sections",
+    [{}, {"Sobre mí": ["Perfil corto."]}],
+    ids=["sin_secciones", "solo_perfil"],
+)
+async def test_cv_with_few_sections_renders_without_inventing_content(sections):
+    payload = front_payload(headline="")
+    payload["cv"]["sections"] = sections
+    result = await render(payload)
+    assert result.accepted, result.message
+
+
 def merge_case(overrides: dict) -> dict:
     payload = front_payload()
     cv_overrides = deepcopy(overrides)
