@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from app.core.config import get_settings
 from app.entities.base import Base
-from app.entities import experiment  # noqa: F401
+from app.entities import experiment, saved_cv  # noqa: F401
 
 settings = get_settings()
 
