@@ -17,6 +17,7 @@ from app.services.implementations.cv_sanitizer import (
     normalize_section_dates,
     sanitize_text_fields,
 )
+from app.services.implementations.yaml_errors import yaml_syntax_error
 from app.services.interfaces.cv_renderer import CvRenderer
 
 
@@ -49,6 +50,11 @@ class RenderCvService(CvRenderer):
                     f"(current APP_ENV={self.settings.app_env})."
                 ),
             )
+
+        if payload.profile_yaml:
+            syntax_error = yaml_syntax_error(payload.profile_yaml)
+            if syntax_error:
+                return RenderCvResponse(accepted=False, message=syntax_error, generated_yaml=payload.profile_yaml)
 
         file_stem = payload.output_name or f"cv_{uuid4().hex[:8]}"
         input_file = self.output_dir / f"{file_stem}.yaml"

@@ -44,3 +44,20 @@ async def test_duplicate_name_conflict(client):
     assert first.status_code == 201
     second = await client.post("/cv/saved", json={"name": "Duplicado", "yaml_content": YAML_OK})
     assert second.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_render_explains_broken_yaml_before_rendercv(client):
+    broken = 'cv:\n  name: Ana\n  sections:\n    X:\n      - end_date: "2026-05\n        location: Colombia\n'
+    response = await client.post("/cv/render", json={"profile_yaml": broken})
+    assert response.status_code == 200
+    assert response.json()["accepted"] is False
+    assert response.json()["message"].startswith("Revisa la línea 5: tiene una comilla sin cerrar")
+
+
+def test_syntax_error_without_quotes_names_the_line():
+    from app.services.implementations.yaml_errors import yaml_syntax_error
+
+    assert yaml_syntax_error(YAML_OK) is None
+    message = yaml_syntax_error("cv:\n  name: Ana\n   email: ana@example.com\n")
+    assert message is not None and "línea 3" in message

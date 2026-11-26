@@ -8,38 +8,18 @@ from app.controllers.experiment_controller import require_research_key
 from app.db.database import get_db_session
 from app.entities.saved_cv import SavedCv
 from app.schemas.saved_cv import SavedCvResponse, SavedCvSummary, SavedCvWrite
+from app.services.implementations.yaml_errors import yaml_syntax_error
 
 # Los CV guardados tienen datos personales: mismo acceso que la consola del investigador.
 router = APIRouter(prefix="/cv/saved", tags=["CV guardados"], dependencies=[Depends(require_research_key)])
 
 
-def _unclosed_quote_line(content: str) -> int | None:
-    """Primera línea con comillas dobles impares: una comilla sin cerrar se traga el resto del archivo."""
-    for number, line in enumerate(content.splitlines(), start=1):
-        code = line.split(" #", 1)[0]
-        if code.lstrip().startswith("#"):
-            continue
-        if code.replace('\\"', "").count('"') % 2:
-            return number
-    return None
-
-
 def _validate_yaml(content: str) -> None:
     """Rechaza YAML mal formado antes de guardarlo, indicando la línea del error."""
-    try:
-        document = yaml.safe_load(content)
-    except yaml.YAMLError as error:
-        mark = getattr(error, "problem_mark", None)
-        context_mark = getattr(error, "context_mark", None)
-        where = f" (línea {mark.line + 1}, columna {mark.column + 1})" if mark else ""
-        problem = getattr(error, "problem", None) or "formato inválido"
-        detail = f"El YAML no es válido{where}: {problem}"
-        if context_mark and mark and context_mark.line != mark.line:
-            detail += f". El bloque con el error empieza en la línea {context_mark.line + 1}"
-        quote_line = _unclosed_quote_line(content)
-        if quote_line:
-            detail += f". Revisa la línea {quote_line}: tiene una comilla sin cerrar"
-        raise HTTPException(status_code=422, detail=detail) from error
+    error = yaml_syntax_error(content)
+    if error:
+        raise HTTPException(status_code=422, detail=error)
+    document = yaml.safe_load(content)
     if not isinstance(document, dict) or not isinstance(document.get("cv"), dict):
         raise HTTPException(status_code=422, detail="El YAML debe tener una sección 'cv' en la raíz")
 
